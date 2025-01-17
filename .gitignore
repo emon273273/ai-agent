@@ -1,0 +1,17 @@
+# Ignore the .env file
+.env
+
+# Ignore the myenv virtual environment folder
+myenv/
+
+# Common Python ignores
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# VS Code specific
+.vscode/
