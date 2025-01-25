@@ -1,6 +1,7 @@
+#from langchain_groq import ChatGroq
+from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 
-from dotenv import load_dotenv
 load_dotenv()
 
 llm = ChatGroq(
@@ -14,7 +15,7 @@ llm = ChatGroq(
 )
 
 
-messages="what is the square root of 49"
+messages="I have a cat name and i want a cool name for it . Suggest me five cool names for my cat"
 ai_msg = llm.invoke(messages)
 
 print(ai_msg.content)
