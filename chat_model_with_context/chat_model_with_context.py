@@ -1,13 +1,19 @@
+import os
+import psycopg2
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_groq import ChatGroq
-import os
-import psycopg2
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 # Load environment variables
 load_dotenv()
+
+# Verify environment variables
+print("DB_NAME:", os.getenv("DB_NAME"))
+print("DB_USER:", os.getenv("DB_USER"))
+print("DB_HOST:", os.getenv("DB_HOST"))
+print("DB_PORT:", os.getenv("DB_PORT"))
 
 # Initialize Groq LLM
 llm = ChatGroq(
@@ -21,6 +27,7 @@ llm = ChatGroq(
 # Connect to PostgreSQL server (without specifying a database)
 def get_server_connection():
     return psycopg2.connect(
+        dbname="postgres",  # Connect to the default 'postgres' database
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
         host=os.getenv("DB_HOST"),
@@ -39,76 +46,97 @@ def get_db_connection():
 
 # Create database if it doesn't exist
 def create_database_if_not_exists():
-    conn = get_server_connection()
-    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)  # Allow database creation
-    cur = conn.cursor()
+    try:
+        conn = get_server_connection()
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)  # Allow database creation
+        cur = conn.cursor()
 
-    # Check if database exists
-    cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (os.getenv("DB_NAME"),))
-    if not cur.fetchone():
-        # Create the database
-        cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(os.getenv("DB_NAME"))))
-        print(f"Database '{os.getenv('DB_NAME')}' created.")
+        # Check if database exists
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (os.getenv("DB_NAME"),))
+        if not cur.fetchone():
+            # Create the database
+            cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(os.getenv("DB_NAME"))))
+            print(f"Database '{os.getenv('DB_NAME')}' created.")
 
-    cur.close()
-    conn.close()
+        cur.close()
+    except psycopg2.Error as e:
+        print(f"Error creating database: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 # Create table if it doesn't exist
 def create_table_if_not_exists():
-    conn = get_db_connection()
-    cur = conn.cursor()
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-    # Check if table exists
-    cur.execute("""
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_name = 'chat_history'
-    """)
-    if not cur.fetchone():
-        # Create the table
+        # Check if table exists
         cur.execute("""
-            CREATE TABLE chat_history (
-                id SERIAL PRIMARY KEY,
-                role VARCHAR(50) NOT NULL,
-                content TEXT NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_name = 'chat_history'
         """)
-        print("Table 'chat_history' created.")
+        if not cur.fetchone():
+            # Create the table
+            cur.execute("""
+                CREATE TABLE chat_history (
+                    id SERIAL PRIMARY KEY,
+                    role VARCHAR(50) NOT NULL,
+                    content TEXT NOT NULL,
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            print("Table 'chat_history' created.")
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        cur.close()
+    except psycopg2.Error as e:
+        print(f"Error creating table: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 # Save message to the database
 def save_message_to_db(role, content):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    query = sql.SQL("INSERT INTO chat_history (role, content) VALUES (%s, %s)")
-    cur.execute(query, (role, content))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        query = sql.SQL("INSERT INTO chat_history (role, content) VALUES (%s, %s)")
+        cur.execute(query, (role, content))
+        conn.commit()
+        cur.close()
+    except psycopg2.Error as e:
+        print(f"Error saving message to database: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 # Load chat history from the database
 def load_chat_history_from_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT role, content FROM chat_history ORDER BY timestamp")
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT role, content FROM chat_history ORDER BY timestamp")
+        rows = cur.fetchall()
+        cur.close()
 
-    chat_history = []
-    for row in rows:
-        role, content = row  # Unpack the row correctly
-        if role == "system":
-            chat_history.append(SystemMessage(content=content))
-        elif role == "human":
-            chat_history.append(HumanMessage(content=content))
-        elif role == "ai":
-            chat_history.append(AIMessage(content=content))
-    return chat_history
+        chat_history = []
+        for row in rows:
+            role, content = row  # Unpack the row correctly
+            if role == "system":
+                chat_history.append(SystemMessage(content=content))
+            elif role == "human":
+                chat_history.append(HumanMessage(content=content))
+            elif role == "ai":
+                chat_history.append(AIMessage(content=content))
+        return chat_history
+    except psycopg2.Error as e:
+        print(f"Error loading chat history: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 # Initialize database and table
 create_database_if_not_exists()
