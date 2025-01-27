@@ -163,7 +163,7 @@ def process_document(file_path: str, document_id: str):
     loader = PyPDFLoader(file_path)
     documents = loader.load()
     
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=50)
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     docs = text_splitter.split_documents(documents)
     
     print(f"Number of document chunks: {len(docs)}")

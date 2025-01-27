@@ -18,7 +18,7 @@ class DocumentChat:
         # Initialize Groq LLM
         self.llm = ChatGroq(
             model="mixtral-8x7b-32768",
-            temperature=0.7,
+            temperature=0.5,
             max_tokens=None,
             timeout=None,
             max_retries=2,
@@ -26,14 +26,51 @@ class DocumentChat:
         )
         
         # System message template
-        self.system_template = """You are a helpful assistant that answers questions based on the provided context. 
-        Use the following context to answer the user's question. If you can't find the answer in the context, 
-        say so honestly.
+        # self.system_template = """You are a helpful assistant that answers questions based on the provided context. 
+        # Use the following context to answer the user's question. If you can't find the answer in the context, 
+        # say so honestly.
         
-        Context:
+        # Context:
+        # {context}
+        
+        # Answer the question based only on the above context."""
+        self.system_template = """
+        You are an intelligent and reliable assistant. Your primary goal is to provide clear, accurate, and concise answers based strictly on the given context.
+
+        **Rules for Generating Responses:**
+        1. **Direct Answers:**
+        - If the user's question is directly answered in the context, provide the exact information without adding unrelated details.
+        - Ensure your response is precise and factual.
+
+        2. **Partial Information:**
+        - If the context contains only part of the information needed to answer the question, provide a partial response and specify what is missing.
+
+        3. **No Relevant Information:**
+        - If you cannot find relevant information in the context to answer the question, state:  
+            "I could not find the answer in the provided context."
+
+        4. **Contact Information Requests:**
+        - If the user asks for contact details (e.g., emails or support) and no such information is found in the context, respond with this default:  
+            **CONTACT INFORMATION:**  
+            - Website: Omega Solution  
+            - Email: support@omega.ac  
+            - Customer Support: https://support.omega.ac  
+
+        5. **Quoting Context:**
+        - Always be precise when quoting information from the context. Avoid paraphrasing unless absolutely necessary.
+        
+
+        6. **Tone:**
+        - Maintain a professional, polite, and helpful tone throughout your responses.
+
+        **Context:**
         {context}
+
+        Now, based on the above rules, answer the user's question accurately.
+        """
+
+
         
-        Answer the question based only on the above context."""
 
     def format_context(self, results: List[Dict]) -> str:
         """Format the search results into a single context string"""
@@ -48,7 +85,7 @@ class DocumentChat:
         """Generate a response to the user's query"""
         try:
             # Get relevant context from the vector store
-            search_results = self.vector_store.similarity_search(query, k=3)
+            search_results = self.vector_store.similarity_search(query, k=5)
             
             if not search_results:
                 return "I couldn't find any relevant information in the documents to answer your question."
